@@ -24,14 +24,20 @@ file_name = st.text_input('Voer de gewenste bestandsnaam in (zonder extensie):',
 zoekwaarde = st.text_input("Voer een waarde in om naar te zoeken (bijv. 473-1 of alles)", key="zoekwaarde")
 
 if geüpload_bestand and download_bestand and analyse_bestand and file_name and zoekwaarde:
-    try:  
-        time.sleep(2)
-        print_elapsed_time(start_time, "voor inlezen")       
+             
         wb_lezen = load_workbook(filename=BytesIO(geüpload_bestand.read()), data_only=True)
+        time.sleep(2)
+        print_elapsed_time(start_time, "Na load workbook")
         wb_schrijven = load_workbook(filename=BytesIO(download_bestand.read()))
+        time.sleep(2)
+        print_elapsed_time(start_time, "Na load workbook")
         wb_analyseren = load_workbook(filename=BytesIO(analyse_bestand.read()))
         time.sleep(2)
-        print_elapsed_time(start_time, "na inlezen")
+        print_elapsed_time(start_time, "Na load workbook")
+        
+        
+        
+
         kolom = "G"
         ws_lezen = wb_lezen.active
 
@@ -103,13 +109,12 @@ if geüpload_bestand and download_bestand and analyse_bestand and file_name and 
         
         analyseid = []
         for rij in ws_schrijven.iter_rows(min_row = 2, values_only=True):
-            analyseid.append(rij[9])
-
-
-        
+            if rij[9] is not None:
+                analyseid.append(rij[9])
         time.sleep(2)
         print_elapsed_time(start_time, "voor wb_analyseren")
-
+        
+        
         ws_analyse = wb_analyseren.active
         hoeveelheid = []
         alle_urine_analysen = []
@@ -130,8 +135,11 @@ if geüpload_bestand and download_bestand and analyse_bestand and file_name and 
                             
                     break  
 
+        
+        # Tweede timestamp
         time.sleep(2)
-        print_elapsed_time(start_time, "na wb_analyseren")
+        print_elapsed_time(start_time, "Na het verwerken van alle analyseid")
+
         ws_schrijven = wb_schrijven.active
         kolom_letter = 'K' 
         begin_rij = 2 
@@ -189,7 +197,8 @@ if geüpload_bestand and download_bestand and analyse_bestand and file_name and 
                 
             
        
-        
+        time.sleep(2)
+        print_elapsed_time(start_time, "Na dictionary")
         non_blank_entries = sorted([entry for entry in analyses_unique if entry != "" and entry in alle_urine_analysen], key=custom_sort_key)
         sorted_urine_analysen = []
         for entry in non_blank_entries:
@@ -215,27 +224,29 @@ if geüpload_bestand and download_bestand and analyse_bestand and file_name and 
         geselecteerde_analyses = st.multiselect("Selecteer analyses om niet in te vullen:", st.session_state.analyses)
 
         # Dictionary voor ingevulde waarden
-        ingevulde_hoeveelheden = {
-        analyse: st.text_input(f"Voer de hoeveelheid in voor {analyse}:", key=analyse)
-        for analyse in st.session_state.analyses
-        if analyse not in geselecteerde_analyses}
+        ingevulde_hoeveelheden = {}
 
+        # Invoer voor ontbrekende analyses
+        for analyse in st.session_state.analyses:
+            if analyse not in geselecteerde_analyses:
+                hoeveelheid = st.text_input(f"Voer de hoeveelheid in voor {analyse}:", key=analyse)
+                if hoeveelheid:
+                    ingevulde_hoeveelheden[analyse] = hoeveelheid
 
-# Verwijder lege invoervelden
-        ingevulde_hoeveelheden = {analyse: hoeveelheid for analyse, hoeveelheid in ingevulde_hoeveelheden.items() if hoeveelheid}
-
+        # Knop om analyses toe te voegen
         if st.button("Voeg analyses toe"):
             for analyse, hoeveelheid in ingevulde_hoeveelheden.items():
                 detectielimieten_analysen[analyse] = detectielimieten_analysen.get(analyse, 0) + int(hoeveelheid)
                 st.session_state.toegevoegde_analyses[analyse] = hoeveelheid
 
-    # Verwijder geselecteerde analyses uit de lijsten
-        geselecteerde_set = set(geselecteerde_analyses)
-        st.session_state.analyses = [analyse for analyse in st.session_state.analyses if analyse not in geselecteerde_set]
-        urine_analysen2 = [analyse for analyse in urine_analysen2 if analyse not in geselecteerde_set]
+            # Verwijder geselecteerde analyses uit de analyses en beschikbare analyses
+            st.session_state.analyses = [analyse for analyse in st.session_state.analyses if analyse not in geselecteerde_analyses]
+            urine_analysen2 = [analyse for analyse in urine_analysen2 if analyse not in geselecteerde_analyses]
+    
 
 
-
+        time.sleep(3)
+        print_elapsed_time(start_time, "Na derde taak")
         filtered_analysen = []
         for analyse in urine_analysen:
             if analyse == "":
@@ -256,8 +267,8 @@ if geüpload_bestand and download_bestand and analyse_bestand and file_name and 
 
 
 
-        time.sleep(2)
-        print_elapsed_time(start_time, "voor Resultaten")
+        time.sleep(3)
+        print_elapsed_time(start_time, "voor resultaten")
         # write data to sheet, create new sheet if not exists, empty sheet if exists
         if "Resultaten" not in wb_schrijven.sheetnames:
             ws2 = wb_schrijven.create_sheet(title="Resultaten")
@@ -267,9 +278,6 @@ if geüpload_bestand and download_bestand and analyse_bestand and file_name and 
             ws2 = wb_schrijven["Resultaten"]
             ws2.delete_rows(2, ws2.max_row)
 
-
-        time.sleep(2)
-        print_elapsed_time(start_time, "na  Resultaten")
         for patient_id, patient_data in patients.items():
    
                 row = [patient_id]+[patient_data.get(header[i], "") for i in range(len(header))]
@@ -312,8 +320,7 @@ if geüpload_bestand and download_bestand and analyse_bestand and file_name and 
 
         
 
-        time.sleep(2)
-        print_elapsed_time(start_time, "na Resultaten")
+            
         for analyse in urine_analysen2:
             if analyse not in wb_schrijven.sheetnames and analyse != "Creatinine":
                 ws2 = wb_schrijven.create_sheet(title=analyse)
@@ -607,9 +614,7 @@ if geüpload_bestand and download_bestand and analyse_bestand and file_name and 
 
 
 
-        time.sleep(2)
-        print_elapsed_time(start_time, "voor saven")
-
+        
         wb_schrijven.save("statistics.xlsx")
         with open("statistics.xlsx", "rb") as file:
             btn = st.download_button(
@@ -622,9 +627,7 @@ if geüpload_bestand and download_bestand and analyse_bestand and file_name and 
         
         st.success(f"Rijen met waarde '{zoekwaarde}' zijn gekopieerd naar statistics.xlsx.")
 
-    except Exception as e:
-        st.error(f"Er is een fout opgetreden tijdens de verwerking, Controleer alle invoer en probeer het opnieuw.")    
-        print(str(e))
+
 
 else: 
     st.error("Een of meer van de benodigde bestanden zijn niet geüpload. Controleer de bestanden en probeer het opnieuw.")
