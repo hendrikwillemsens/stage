@@ -23,236 +23,274 @@ analyse_bestand = st.file_uploader("Kies een bestand (xlsx) om te analyseren", t
 file_name = st.text_input('Voer de gewenste bestandsnaam in (zonder extensie):', 'statistics')
 zoekwaarde = st.text_input("Voer een waarde in om naar te zoeken (bijv. 473-1 of alles)", key="zoekwaarde")
 
+# Initialize session state
+if 'data_loaded' not in st.session_state:
+    st.session_state['data_loaded'] = False
+    st.session_state['urine_analysen'] = None
+    st.session_state['urine_analysen2'] = None
+    st.session_state['filter_analyses'] = None
+    st.session_state['detectielimieten_analysen'] = {
+        "1-methoxy-2-propanol": 0.5, "Chroom": 0.5, "Cobalt": 0, "Ethylmethylketon": 0.1, 
+        "Fluor": 0, "Hippuurzuur": 20, "Methylhippuurzuur": 50.0, "Muconzuur": 0, "Nikkel": 0, 
+        "o-Cresol": 0.05, "Creatinine": 0
+    }
 if geüpload_bestand and download_bestand and analyse_bestand and file_name and zoekwaarde:
+        if not st.session_state['data_loaded']:
              
-        wb_lezen = load_workbook(filename=BytesIO(geüpload_bestand.read()), data_only=True)
-        time.sleep(2)
-        print_elapsed_time(start_time, "Na load workbook")
-        wb_schrijven = load_workbook(filename=BytesIO(download_bestand.read()))
-        time.sleep(2)
-        print_elapsed_time(start_time, "Na load workbook")
-        wb_analyseren = load_workbook(filename=BytesIO(analyse_bestand.read()))
-        time.sleep(2)
-        print_elapsed_time(start_time, "Na load workbook")
-        
-        
+            wb_lezen = load_workbook(filename=BytesIO(geüpload_bestand.read()), data_only=True)
+            time.sleep(2)
+            print_elapsed_time(start_time, "Na load workbook")
+            wb_schrijven = load_workbook(filename=BytesIO(download_bestand.read()))
+            time.sleep(2)
+            print_elapsed_time(start_time, "Na load workbook")
+            wb_analyseren = load_workbook(filename=BytesIO(analyse_bestand.read()))
+            time.sleep(2)
+            print_elapsed_time(start_time, "Na load workbook")
+            
+            st.session_state['wb_lezen'] = wb_lezen
+            st.session_state['wb_schrijven'] = wb_schrijven
+            st.session_state['wb_analyseren'] = wb_analyseren
+            st.session_state['data_loaded'] = True
+            print_elapsed_time(start_time, "Na load workbook")
         
 
-        kolom = "G"
-        ws_lezen = wb_lezen.active
+            kolom = "G"
+            ws_lezen = wb_lezen.active
+            detectielimieten_analysen = st.session_state['detectielimieten_analysen']
+            def hoofden(werbladx):
+                werbladx['A1'] = "Onze ref."
+                werbladx['B1'] = "Naam"
+                werbladx['C1'] = "Voornaam"
+                werbladx['D1'] = "Bedrijf"
+                werbladx['E1'] = "Werknemer"
+                werbladx['F1'] = "Ontvangstdatum"
+                werbladx['G1'] = "Geboortedatum"
+                werbladx['H1'] = "Geslacht"
+                werbladx['I1'] = "Arts"
+                bold_font = Font(bold=True)    
+                for cell in werbladx[1]:
+                    cell.font = bold_font
 
-        def hoofden(werbladx):
-            werbladx['A1'] = "Onze ref."
-            werbladx['B1'] = "Naam"
-            werbladx['C1'] = "Voornaam"
-            werbladx['D1'] = "Bedrijf"
-            werbladx['E1'] = "Werknemer"
-            werbladx['F1'] = "Ontvangstdatum"
-            werbladx['G1'] = "Geboortedatum"
-            werbladx['H1'] = "Geslacht"
-            werbladx['I1'] = "Arts"
-            bold_font = Font(bold=True)    
-            for cell in werbladx[1]:
-                cell.font = bold_font
+            def custom_sort_key(entry):
+                parts = entry.split()
+                if len(parts) > 1:
+                    base_name = parts[0]
+                    is_creat = 'creat.' in entry.lower()
+                else:
+                    base_name = entry
+                    is_creat = False
+                return (base_name, not is_creat) 
+            
+            
+            
+            nieuwe_limieten={"1-methoxy-2-propanol": 0.4 ,"Chroom":0.4, "Cobalt":0, "Ethylmethylketon":0.1,"Fluor":0, "Hippuurzuur":19, "Methylhippuurzuur":49.9,
+            "Muconzuur":0, "Nikkel":0, "o-Cresol":0.04, "Creatinine":0}
+            
+            tollerantiegrens = {"1-methoxy-2-propanol":"niet beschikbaar","Chroom": {"Einde shift, einde werkweek":"30,0 µg/g creat.",
+            "Einde shift - begin shift": "</=10,0 µg/g creat."},
+            "Cobalt":{"Einde shift, einde werkweek":"15,0 µg/g creat." }, "Ethylmethylketon":{"Einde shift":"2,5 mg/g creat."},
+            "Fluor":{"Begin shift":"3,00 mg/g creat.", "Einde shift": "7,00 mg/g creat."}, "Hippuurzuur":{" Einde shift": "1500 mg/g creat."}, 
+            "Methylhippuurzuur": {"Einde shift": "1500,0 mg/g creat."}, "Muconzuur":{"Einde shift":"1,50 mg/g creat."},
+            "Nikkel": ["Blootstelling aan oplosbaar nikkel (100 µg/m3 lucht) correspondeert einde shift met", "50,0 µg/g creat."],
+            "o-Cresol":{"Einde shift": "0,50 mg/g creat."}                                                                                                                                    
+            }
+            
+            grenswaarden = {"1-methoxy-2-propanol":"0","Chroom": "0,0 - 0,35 µg/g creat.",
+            "Cobalt":"0,0 - 2,0 µg/g creat.", "Ethylmethylketon":"0",
+            "Fluor":"0,00 - 1,00 mg/g creat.", "Hippuurzuur": "0 - 1500 mg/g creat.", 
+            "Methylhippuurzuur": "0", "Muconzuur":" 0,00 - 0,30 mg/g creat.",
+            "Nikkel": "0,0 - 5,0 µg/g creat.",
+            "o-Cresol":"0,00 - 0,30 mg/g creat."                                                                                                                                    
+            }
 
-        def custom_sort_key(entry):
-            parts = entry.split()
-            if len(parts) > 1:
-                base_name = parts[0]
-                is_creat = 'creat.' in entry.lower()
-            else:
-                base_name = entry
-                is_creat = False
-            return (base_name, not is_creat) 
-        
-        detectielimieten_analysen={"1-methoxy-2-propanol": 0.5 ,"Chroom":0.5, "Cobalt":0, "Ethylmethylketon":0.1,"Fluor":0, "Hippuurzuur":20, "Methylhippuurzuur":50.0,
-        "Muconzuur":0, "Nikkel":0, "o-Cresol":0.05, "Creatinine":0}
-        
-        nieuwe_limieten={"1-methoxy-2-propanol": 0.4 ,"Chroom":0.4, "Cobalt":0, "Ethylmethylketon":0.1,"Fluor":0, "Hippuurzuur":19, "Methylhippuurzuur":49.9,
-        "Muconzuur":0, "Nikkel":0, "o-Cresol":0.04, "Creatinine":0}
-        
-        tollerantiegrens = {"1-methoxy-2-propanol":"niet beschikbaar","Chroom": {"Einde shift, einde werkweek":"30,0 µg/g creat.",
-        "Einde shift - begin shift": "</=10,0 µg/g creat."},
-        "Cobalt":{"Einde shift, einde werkweek":"15,0 µg/g creat." }, "Ethylmethylketon":{"Einde shift":"2,5 mg/g creat."},
-        "Fluor":{"Begin shift":"3,00 mg/g creat.", "Einde shift": "7,00 mg/g creat."}, "Hippuurzuur":{" Einde shift": "1500 mg/g creat."}, 
-        "Methylhippuurzuur": {"Einde shift": "1500,0 mg/g creat."}, "Muconzuur":{"Einde shift":"1,50 mg/g creat."},
-        "Nikkel": ["Blootstelling aan oplosbaar nikkel (100 µg/m3 lucht) correspondeert einde shift met", "50,0 µg/g creat."],
-        "o-Cresol":{"Einde shift": "0,50 mg/g creat."}                                                                                                                                    
-        }
-        
-        grenswaarden = {"1-methoxy-2-propanol":"0","Chroom": "0,0 - 0,35 µg/g creat.",
-        "Cobalt":"0,0 - 2,0 µg/g creat.", "Ethylmethylketon":"0",
-        "Fluor":"0,00 - 1,00 mg/g creat.", "Hippuurzuur": "0 - 1500 mg/g creat.", 
-        "Methylhippuurzuur": "0", "Muconzuur":" 0,00 - 0,30 mg/g creat.",
-        "Nikkel": "0,0 - 5,0 µg/g creat.",
-        "o-Cresol":"0,00 - 0,30 mg/g creat."                                                                                                                                    
-        }
+            rijen_kopie = []
+            for rij in ws_lezen.iter_rows(min_row=2, values_only=True):
+                if rij[6] == zoekwaarde and rij[15] != 0:
+                    rijen_kopie.append(rij)
+                elif zoekwaarde == "alles":
+                    rijen_kopie.append(rij)
 
-        rijen_kopie = []
-        for rij in ws_lezen.iter_rows(min_row=2, values_only=True):
-            if rij[6] == zoekwaarde and rij[15] != 0:
-                rijen_kopie.append(rij)
-            elif zoekwaarde == "alles":
-                rijen_kopie.append(rij)
+            ws_schrijven = wb_schrijven.active
 
-        ws_schrijven = wb_schrijven.active
-
-        kolommen =  [0,1,2,6,8,9,10,11,20,12,14,15]
-        kolommen2 = [0,1,2,3,4,5,6,7,8,9,11,12]
-        
-        ws_schrijven = wb_schrijven.active
-        for index, rij in enumerate(rijen_kopie, start=2):
-            for i, kolom_index in enumerate(kolommen):
-                waarde = rij[kolom_index]
-                doelkolom_index = kolommen2[i] 
-                ws_schrijven.cell(row=index, column=doelkolom_index + 1, value=waarde)
-        
-        analyseid = []
-        for rij in ws_schrijven.iter_rows(min_row = 2, values_only=True):
-            if rij[9] is not None:
-                analyseid.append(rij[9])
-        time.sleep(2)
-        print_elapsed_time(start_time, "voor wb_analyseren")
-        
-        
-        ws_analyse = wb_analyseren.active
-        hoeveelheid = []
-        alle_urine_analysen = []
-        alle_urine_analysen2 = []
-        for row in analyseid:
-            for rij in ws_analyse.iter_rows(min_row=2, values_only=True):
-                if rij[0] == row:
-                    value_B = rij[1]  
-                    value_C = rij[2]  
-                    concatenated_value = f"{value_B} ({value_C})"  
-                    hoeveelheid.append(concatenated_value)
-                    if rij[6] ==  "Urine" and concatenated_value not in alle_urine_analysen:
-                        alle_urine_analysen.append(concatenated_value)
-                        alle_urine_analysen.append("")
-                        
-                    if rij[6] ==  "Urine" and value_B not in alle_urine_analysen2:
-                        alle_urine_analysen2.append(value_B)
+            kolommen =  [0,1,2,6,8,9,10,11,20,12,14,15]
+            kolommen2 = [0,1,2,3,4,5,6,7,8,9,11,12]
+            
+            ws_schrijven = wb_schrijven.active
+            for index, rij in enumerate(rijen_kopie, start=2):
+                for i, kolom_index in enumerate(kolommen):
+                    waarde = rij[kolom_index]
+                    doelkolom_index = kolommen2[i] 
+                    ws_schrijven.cell(row=index, column=doelkolom_index + 1, value=waarde)
+            
+            analyseid = []
+            for rij in ws_schrijven.iter_rows(min_row = 2, values_only=True):
+                if rij[9] is not None:
+                    analyseid.append(rij[9])
+            time.sleep(2)
+            print_elapsed_time(start_time, "voor wb_analyseren")
+            
+            d = 0
+            ws_analyse = wb_analyseren.active
+            hoeveelheid = []
+            alle_urine_analysen = []
+            alle_urine_analysen2 = []
+            for row in analyseid:
+                for rij in ws_analyse.iter_rows(min_row=2, values_only=True):
+                    if rij[0] == row:
+                        value_B = rij[1]  
+                        value_C = rij[2]  
+                        concatenated_value = f"{value_B} ({value_C})"  
+                        hoeveelheid.append(concatenated_value)
+                        if rij[6] ==  "Urine" and concatenated_value not in alle_urine_analysen:
+                            alle_urine_analysen.append(concatenated_value)
+                            alle_urine_analysen.append("")
                             
-                    break  
+                        if rij[6] ==  "Urine" and value_B not in alle_urine_analysen2:
+                            alle_urine_analysen2.append(value_B)
+                        d = d + 1
+                        print("dit is analyse{}".format(d))       
+                        break  
+    
 
-        
-        # Tweede timestamp
-        time.sleep(2)
-        print_elapsed_time(start_time, "Na het verwerken van alle analyseid")
-
-        ws_schrijven = wb_schrijven.active
-        kolom_letter = 'K' 
-        begin_rij = 2 
-
-        for index, waarde in enumerate(hoeveelheid):
-            cel = ws_schrijven[kolom_letter + str(begin_rij + index)] 
-            cel.value = waarde
-        analyses = []
-
-        
-        
-        header = [cell.value for cell in ws_schrijven[1]]
-        patient_id_index = header.index("Onze ref.") 
-        analyse_index = header.index("Analyse")
-        T_index = header.index("T")
-        result_index = header.index("Resultaat")
-        other_columns = [i for i in range(len(header)) if i not in [patient_id_index, analyse_index, result_index]]
-
-        
-
-        patients = dict()
-        t = dict()
-        analyses_unique = []
-        analyses_unique2 = []
-
-        for row in ws_schrijven.iter_rows(min_row=2, values_only=True):
-            patient_id = str(row[patient_id_index]) 
-            analyse = row[analyse_index]
-            result = row[result_index]
-            if analyse and analyse not in analyses_unique:
-                analyses_unique.append(analyse)
-
-            if analyse:
-               delen = analyse.split('(')
-               eerste_deel = delen[0].strip()
-        
-
-               if eerste_deel and eerste_deel not in analyses_unique2:
-                   analyses_unique2.append(eerste_deel)
-
-        
-            if patient_id not in patients:
-                patients[patient_id] = dict()
-
-                for i in other_columns:
-                    patients[patient_id][header[i]] = row[i]
-            patients[patient_id][analyse] = result
             
-            T_cell = row[T_index]
-            if T_cell is not None:
+            # Tweede timestamp
+            time.sleep(2)
+            print_elapsed_time(start_time, "Na het verwerken van alle analyseid")
+
+            ws_schrijven = wb_schrijven.active
+            kolom_letter = 'K' 
+            begin_rij = 2 
+
+            for index, waarde in enumerate(hoeveelheid):
+                cel = ws_schrijven[kolom_letter + str(begin_rij + index)] 
+                cel.value = waarde
+            analyses = []
+
             
-                if patient_id not in t:
-                    t[patient_id] = dict()
-                t[patient_id][analyse] = T_cell
+            
+            header = [cell.value for cell in ws_schrijven[1]]
+            patient_id_index = header.index("Onze ref.") 
+            analyse_index = header.index("Analyse")
+            T_index = header.index("T")
+            result_index = header.index("Resultaat")
+            other_columns = [i for i in range(len(header)) if i not in [patient_id_index, analyse_index, result_index]]
+
+            
+
+            patients = dict()
+            t = dict()
+            analyses_unique = []
+            analyses_unique2 = []
+
+            for row in ws_schrijven.iter_rows(min_row=2, values_only=True):
+                patient_id = str(row[patient_id_index]) 
+                analyse = row[analyse_index]
+                result = row[result_index]
+                if analyse and analyse not in analyses_unique:
+                    analyses_unique.append(analyse)
+
+                if analyse:
+                    delen = analyse.split('(')
+                    eerste_deel = delen[0].strip()
+            
+
+                if eerste_deel and eerste_deel not in analyses_unique2:
+                    analyses_unique2.append(eerste_deel)
+
+            
+                if patient_id not in patients:
+                    patients[patient_id] = dict()
+
+                    for i in other_columns:
+                        patients[patient_id][header[i]] = row[i]
+                patients[patient_id][analyse] = result
                 
-            
-       
-        time.sleep(2)
-        print_elapsed_time(start_time, "Na dictionary")
-        non_blank_entries = sorted([entry for entry in analyses_unique if entry != "" and entry in alle_urine_analysen], key=custom_sort_key)
-        sorted_urine_analysen = []
-        for entry in non_blank_entries:
-            sorted_urine_analysen.append(entry)
-            sorted_urine_analysen.append("")
+                T_cell = row[T_index]
+                if T_cell is not None:
+                
+                    if patient_id not in t:
+                        t[patient_id] = dict()
+                    t[patient_id][analyse] = T_cell
+                    
+                
+        
+            time.sleep(2)
+            print_elapsed_time(start_time, "Na dictionary")
+            non_blank_entries = sorted([entry for entry in analyses_unique if entry != "" and entry in alle_urine_analysen], key=custom_sort_key)
+            sorted_urine_analysen = []
+            for entry in non_blank_entries:
+                sorted_urine_analysen.append(entry)
+                sorted_urine_analysen.append("")
 
 
-        # Replace the original list with the sorted list
-        urine_analysen = sorted_urine_analysen
-        urine_analysen22 = [entry for entry in analyses_unique2 if entry != "" and entry in alle_urine_analysen2]
-        urine_analysen2 = urine_analysen22
+            # Replace the original list with the sorted list
+            st.session_state['urine_analysen'] = sorted_urine_analysen
+            urine_analysen22 = [entry for entry in analyses_unique2 if entry != "" and entry in alle_urine_analysen2]
+            st.session_state['urine_analysen2'] = urine_analysen22
 
-        # Filter beschikbare analyses
-        filter_analyses = [analyse for analyse in urine_analysen2 if analyse not in detectielimieten_analysen]
+            # Filter beschikbare analyses
+            st.session_state['filter_analyses'] = [analyse for analyse in st.session_state['urine_analysen2'] if analyse not in detectielimieten_analysen]
 
-        # Session state initialisatie
-        if 'analyses' not in st.session_state:
-            st.session_state.analyses = filter_analyses.copy()
-        if 'toegevoegde_analyses' not in st.session_state:
-            st.session_state.toegevoegde_analyses = {}
-
-        # Multiselect voor geselecteerde analyses om te negeren
-        geselecteerde_analyses = st.multiselect("Selecteer analyses om niet in te vullen:", st.session_state.analyses)
-
-        # Dictionary voor ingevulde waarden
         ingevulde_hoeveelheden = {}
+        niet_ingevuld = []
+        for analyse in st.session_state['filter_analyses']:
+            hoeveelheid = st.text_input(f"Voer de hoeveelheid in voor {analyse}:", key=analyse)
+            if hoeveelheid:
+                ingevulde_hoeveelheden[analyse] = hoeveelheid
+                
+            else:
+                niet_ingevuld.append(analyse)
+                
+        
+        st.write(ingevulde_hoeveelheden)
 
-        # Invoer voor ontbrekende analyses
-        for analyse in st.session_state.analyses:
-            if analyse not in geselecteerde_analyses:
-                hoeveelheid = st.text_input(f"Voer de hoeveelheid in voor {analyse}:", key=analyse)
-                if hoeveelheid:
-                    ingevulde_hoeveelheden[analyse] = hoeveelheid
+        if st.button("Voeg analyses toe"):
+            for analyse, hoeveelheid in ingevulde_hoeveelheden.items():
+                st.session_state.detectielimieten_analysen[analyse] = int(hoeveelheid)
+            print("urine analyse ervoor")
+            print(st.session_state["urine_analysen2"])
+            print("niet ingevuld")
+            print(niet_ingevuld)
+            st.session_state["urine_analysen2"] = [analyse for analyse in st.session_state["urine_analysen2"] if analyse not in niet_ingevuld]
+            print("urine analyse erna")
+            print(st.session_state["urine_analysen2"])
+            
+
+
+
+
+        detectielimieten_analysen = st.session_state['detectielimieten_analysen']
+
+        
+        st.write(detectielimieten_analysen)
+        st.write(st.session_state["urine_analysen"])
+        st.write(st.session_state["urine_analysen2"])
+        """
 
         # Knop om analyses toe te voegen
         if st.button("Voeg analyses toe"):
+            geselecteerde_analyses = []
             for analyse, hoeveelheid in ingevulde_hoeveelheden.items():
                 detectielimieten_analysen[analyse] = detectielimieten_analysen.get(analyse, 0) + int(hoeveelheid)
                 st.session_state.toegevoegde_analyses[analyse] = hoeveelheid
+                geselecteerde_analyses.append(analyse)
 
             # Verwijder geselecteerde analyses uit de analyses en beschikbare analyses
             st.session_state.analyses = [analyse for analyse in st.session_state.analyses if analyse not in geselecteerde_analyses]
-            urine_analysen2 = [analyse for analyse in urine_analysen2 if analyse not in geselecteerde_analyses]
+            st.session_state['urine_analysen2'] = [analyse for analyse in st.session_state['urine_analysen2'] if analyse not in geselecteerde_analyses]
     
 
-
+        
         time.sleep(3)
         print_elapsed_time(start_time, "Na derde taak")
+
+
         filtered_analysen = []
-        for analyse in urine_analysen:
+        for analyse in st.session_state['urine_analysen']:
             if analyse == "":
                 continue
             analyse_name = analyse.split(" ")[0]  # Neem alleen het deel voor de eerste spatie
-            if analyse_name in urine_analysen2:
+            if analyse_name in st.session_state['urine_analysen2']:
                 filtered_analysen.append(analyse)
 
 
@@ -262,18 +300,18 @@ if geüpload_bestand and download_bestand and analyse_bestand and file_name and 
             sorted_filtered_analysen.append(entry)
             sorted_filtered_analysen.append("")
 
-        urine_analysen = sorted_filtered_analysen
+        st.session_state['urine_analysen'] = sorted_filtered_analysen
 
 
 
-
+        """
         time.sleep(3)
         print_elapsed_time(start_time, "voor resultaten")
         # write data to sheet, create new sheet if not exists, empty sheet if exists
         if "Resultaten" not in wb_schrijven.sheetnames:
             ws2 = wb_schrijven.create_sheet(title="Resultaten")
             # write header
-            ws2.append(["Onze ref."]+(header:=["Naam", "Voornaam", "Bedrijf", "Werknemer", "Ontvangstdatum", "Geboortedatum", "Geslacht", "Arts", " "])+urine_analysen)
+            ws2.append(["Onze ref."]+(header:=["Naam", "Voornaam", "Bedrijf", "Werknemer", "Ontvangstdatum", "Geboortedatum", "Geslacht", "Arts", " "])+st.session_state['urine_analysen'])
         else:
             ws2 = wb_schrijven["Resultaten"]
             ws2.delete_rows(2, ws2.max_row)
@@ -283,7 +321,7 @@ if geüpload_bestand and download_bestand and analyse_bestand and file_name and 
                 row = [patient_id]+[patient_data.get(header[i], "") for i in range(len(header))]
                 analyse_array = []
                 
-                for analyse in urine_analysen:
+                for analyse in st.session_state['urine_analysen']:
                     analyse_array.append(patient_data.get(analyse, ""))
                 if any(element != "" for element in analyse_array):
                     rij = row + analyse_array
@@ -321,7 +359,7 @@ if geüpload_bestand and download_bestand and analyse_bestand and file_name and 
         
 
             
-        for analyse in urine_analysen2:
+        for analyse in st.session_state['urine_analysen2']:
             if analyse not in wb_schrijven.sheetnames and analyse != "Creatinine":
                 ws2 = wb_schrijven.create_sheet(title=analyse)
                 detectielimiet = detectielimieten_analysen.get(analyse,"")
@@ -332,9 +370,9 @@ if geüpload_bestand and download_bestand and analyse_bestand and file_name and 
                 vermijd_analyses = ["methylhippuurzuur (mg/L)", "methylhippuurzuur (mg/g creat.)"]
 
                 if analyse != "Methylhippuurzuur": 
-                    matching_headers = [result for result in urine_analysen if analyse in result and all(v_analyse not in result for v_analyse in vermijd_analyses)]
+                    matching_headers = [result for result in st.session_state['urine_analysen'] if analyse in result and all(v_analyse not in result for v_analyse in vermijd_analyses)]
                 elif analyse == "Methylhippuurzuur":
-                    matching_headers = [result for result in urine_analysen if analyse in result]
+                    matching_headers = [result for result in st.session_state['urine_analysen'] if analyse in result]
                 match = matching_headers
                 
                 
