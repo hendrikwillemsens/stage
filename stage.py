@@ -28,12 +28,15 @@ if 'data_loaded' not in st.session_state:
     st.session_state['data_loaded'] = False
     st.session_state['urine_analysen'] = None
     st.session_state['urine_analysen2'] = None
+    st.session_state['header'] = None
     st.session_state['filter_analyses'] = None
     st.session_state['detectielimieten_analysen'] = {
         "1-methoxy-2-propanol": 0.5, "Chroom": 0.5, "Cobalt": 0, "Ethylmethylketon": 0.1, 
         "Fluor": 0, "Hippuurzuur": 20, "Methylhippuurzuur": 50.0, "Muconzuur": 0, "Nikkel": 0, 
         "o-Cresol": 0.05, "Creatinine": 0
-    }
+        }
+    st.session_state.patients = {}
+    st.session_state.t = {}
 if geüpload_bestand and download_bestand and analyse_bestand and file_name and zoekwaarde:
         if not st.session_state['data_loaded']:
              
@@ -57,6 +60,7 @@ if geüpload_bestand and download_bestand and analyse_bestand and file_name and 
             kolom = "G"
             ws_lezen = wb_lezen.active
             detectielimieten_analysen = st.session_state['detectielimieten_analysen']
+            
             def hoofden(werbladx):
                 werbladx['A1'] = "Onze ref."
                 werbladx['B1'] = "Naam"
@@ -168,12 +172,12 @@ if geüpload_bestand and download_bestand and analyse_bestand and file_name and 
 
             
             
-            header = [cell.value for cell in ws_schrijven[1]]
-            patient_id_index = header.index("Onze ref.") 
-            analyse_index = header.index("Analyse")
-            T_index = header.index("T")
-            result_index = header.index("Resultaat")
-            other_columns = [i for i in range(len(header)) if i not in [patient_id_index, analyse_index, result_index]]
+            st.session_state["header"] = [cell.value for cell in ws_schrijven[1]]
+            patient_id_index = st.session_state["header"].index("Onze ref.") 
+            analyse_index = st.session_state["header"].index("Analyse")
+            T_index = st.session_state["header"].index("T")
+            result_index = st.session_state["header"].index("Resultaat")
+            other_columns = [i for i in range(len(st.session_state["header"])) if i not in [patient_id_index, analyse_index, result_index]]
 
             
 
@@ -198,19 +202,19 @@ if geüpload_bestand and download_bestand and analyse_bestand and file_name and 
                     analyses_unique2.append(eerste_deel)
 
             
-                if patient_id not in patients:
-                    patients[patient_id] = dict()
+                if patient_id not in st.session_state.patients:
+                    st.session_state.patients[patient_id] = dict()
 
                     for i in other_columns:
-                        patients[patient_id][header[i]] = row[i]
-                patients[patient_id][analyse] = result
+                        st.session_state.patients[patient_id][st.session_state["header"][i]] = row[i]
+                st.session_state.patients[patient_id][analyse] = result
                 
                 T_cell = row[T_index]
                 if T_cell is not None:
                 
-                    if patient_id not in t:
-                        t[patient_id] = dict()
-                    t[patient_id][analyse] = T_cell
+                    if patient_id not in st.session_state.t:                             
+                        st.session_state.t[patient_id] = dict()
+                    st.session_state.t[patient_id][analyse] = T_cell
                     
                 
         
@@ -233,6 +237,8 @@ if geüpload_bestand and download_bestand and analyse_bestand and file_name and 
 
         ingevulde_hoeveelheden = {}
         niet_ingevuld = []
+        gefiltered = []
+        gesorteerd_gefiltered = []
         for analyse in st.session_state['filter_analyses']:
             hoeveelheid = st.text_input(f"Voer de hoeveelheid in voor {analyse}:", key=analyse)
             if hoeveelheid:
@@ -247,15 +253,24 @@ if geüpload_bestand and download_bestand and analyse_bestand and file_name and 
         if st.button("Voeg analyses toe"):
             for analyse, hoeveelheid in ingevulde_hoeveelheden.items():
                 st.session_state.detectielimieten_analysen[analyse] = int(hoeveelheid)
-            print("urine analyse ervoor")
-            print(st.session_state["urine_analysen2"])
-            print("niet ingevuld")
-            print(niet_ingevuld)
-            st.session_state["urine_analysen2"] = [analyse for analyse in st.session_state["urine_analysen2"] if analyse not in niet_ingevuld]
-            print("urine analyse erna")
-            print(st.session_state["urine_analysen2"])
             
 
+
+            st.session_state["urine_analysen2"] = [analyse for analyse in st.session_state["urine_analysen2"] if analyse not in niet_ingevuld]
+
+
+            for urine2 in st.session_state["urine_analysen"]:
+                if urine2 == "":
+                    continue
+                analyse_naam = urine2.split(" ")[0]
+                if analyse_naam in st.session_state['urine_analysen2']:
+                    gefiltered.append(urine2)
+          
+
+            for ingeving in gefiltered:
+                gesorteerd_gefiltered.append(ingeving)
+                gesorteerd_gefiltered.append("")
+            st.session_state['urine_analysen'] = gesorteerd_gefiltered
 
 
 
@@ -265,60 +280,35 @@ if geüpload_bestand and download_bestand and analyse_bestand and file_name and 
         st.write(detectielimieten_analysen)
         st.write(st.session_state["urine_analysen"])
         st.write(st.session_state["urine_analysen2"])
-        """
-
-        # Knop om analyses toe te voegen
-        if st.button("Voeg analyses toe"):
-            geselecteerde_analyses = []
-            for analyse, hoeveelheid in ingevulde_hoeveelheden.items():
-                detectielimieten_analysen[analyse] = detectielimieten_analysen.get(analyse, 0) + int(hoeveelheid)
-                st.session_state.toegevoegde_analyses[analyse] = hoeveelheid
-                geselecteerde_analyses.append(analyse)
-
-            # Verwijder geselecteerde analyses uit de analyses en beschikbare analyses
-            st.session_state.analyses = [analyse for analyse in st.session_state.analyses if analyse not in geselecteerde_analyses]
-            st.session_state['urine_analysen2'] = [analyse for analyse in st.session_state['urine_analysen2'] if analyse not in geselecteerde_analyses]
-    
-
+        print('Dit is urine-analysen bij het write gedeelte')
+        print(st.session_state['urine_analysen'])
+        print('Dit is urine-analysen2 bij het wrtie gedeelte')
+        print(st.session_state['urine_analysen2'])
         
-        time.sleep(3)
-        print_elapsed_time(start_time, "Na derde taak")
 
-
-        filtered_analysen = []
-        for analyse in st.session_state['urine_analysen']:
-            if analyse == "":
-                continue
-            analyse_name = analyse.split(" ")[0]  # Neem alleen het deel voor de eerste spatie
-            if analyse_name in st.session_state['urine_analysen2']:
-                filtered_analysen.append(analyse)
-
-
-
-        sorted_filtered_analysen = []
-        for entry in filtered_analysen:
-            sorted_filtered_analysen.append(entry)
-            sorted_filtered_analysen.append("")
-
-        st.session_state['urine_analysen'] = sorted_filtered_analysen
-
-
-
-        """
         time.sleep(3)
         print_elapsed_time(start_time, "voor resultaten")
         # write data to sheet, create new sheet if not exists, empty sheet if exists
-        if "Resultaten" not in wb_schrijven.sheetnames:
-            ws2 = wb_schrijven.create_sheet(title="Resultaten")
+        if "Resultaten" not in st.session_state['wb_schrijven'].sheetnames:
+            ws2 = st.session_state['wb_schrijven'].create_sheet(title="Resultaten")
             # write header
-            ws2.append(["Onze ref."]+(header:=["Naam", "Voornaam", "Bedrijf", "Werknemer", "Ontvangstdatum", "Geboortedatum", "Geslacht", "Arts", " "])+st.session_state['urine_analysen'])
+            print(st.session_state["urine_analysen"])
+            
+            print('Dit is urine-analysen')
+            print(st.session_state['urine_analysen'])
+            print('Dit is urine-analysen2')
+            print(st.session_state['urine_analysen2'])
+            ws2.append(["Onze ref."]+(header:=["Naam", "Voornaam", "Bedrijf", "Werknemer", "Ontvangstdatum", "Geboortedatum", "Geslacht", "Arts", " "])+ st.session_state['urine_analysen'])
+            
         else:
-            ws2 = wb_schrijven["Resultaten"]
+            ws2 = st.session_state['wb_schrijven']["Resultaten"]
             ws2.delete_rows(2, ws2.max_row)
 
-        for patient_id, patient_data in patients.items():
+        
+
+        for patient_id, patient_data in st.session_state["patients"].items():
    
-                row = [patient_id]+[patient_data.get(header[i], "") for i in range(len(header))]
+                row = [patient_id]+[patient_data.get(st.session_state["header"][i], "") for i in range(len(st.session_state["header"]))]
                 analyse_array = []
                 
                 for analyse in st.session_state['urine_analysen']:
@@ -332,7 +322,7 @@ if geüpload_bestand and download_bestand and analyse_bestand and file_name and 
         for row_index, row in enumerate(ws2.iter_rows(min_row=2), start=2):
             first_cell_value = row[0].value
             
-            for id_keys, id_value in t.items():
+            for id_keys, id_value in st.session_state.t.items():
                 if first_cell_value == id_keys:  
                     for cell_index, cell in enumerate(row, start=1):  
                         kolommen_index = get_column_letter(cell_index)
@@ -358,10 +348,10 @@ if geüpload_bestand and download_bestand and analyse_bestand and file_name and 
 
         
 
-            
+        """    
         for analyse in st.session_state['urine_analysen2']:
-            if analyse not in wb_schrijven.sheetnames and analyse != "Creatinine":
-                ws2 = wb_schrijven.create_sheet(title=analyse)
+            if analyse not in st.session_state['wb_schrijven'].sheetnames and analyse != "Creatinine":
+                ws2 = st.session_state['wb_schrijven'].create_sheet(title=analyse)
                 detectielimiet = detectielimieten_analysen.get(analyse,"")
                 nieuwe_liemiet = nieuwe_limieten.get(analyse,"")
                 
@@ -652,8 +642,8 @@ if geüpload_bestand and download_bestand and analyse_bestand and file_name and 
 
 
 
-        
-        wb_schrijven.save("statistics.xlsx")
+        """
+        st.session_state['wb_schrijven'].save("statistics.xlsx")
         with open("statistics.xlsx", "rb") as file:
             btn = st.download_button(
                 label=f"Klik hier om {file_name}.xlsx te downloaden",
