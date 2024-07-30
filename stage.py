@@ -249,8 +249,9 @@ if geüpload_bestand and download_bestand and analyse_bestand and file_name and 
                 
         
         st.write(ingevulde_hoeveelheden)
-
+        magingevuldworden = False
         if st.button("Voeg analyses toe"):
+            magingevuldworden = True
             for analyse, hoeveelheid in ingevulde_hoeveelheden.items():
                 st.session_state.detectielimieten_analysen[analyse] = int(hoeveelheid)
             
@@ -280,73 +281,66 @@ if geüpload_bestand and download_bestand and analyse_bestand and file_name and 
         st.write(detectielimieten_analysen)
         st.write(st.session_state["urine_analysen"])
         st.write(st.session_state["urine_analysen2"])
-        print('Dit is urine-analysen bij het write gedeelte')
-        print(st.session_state['urine_analysen'])
-        print('Dit is urine-analysen2 bij het wrtie gedeelte')
-        print(st.session_state['urine_analysen2'])
-        
+        hoofd = ["Naam", "Voornaam", "Bedrijf", "Werknemer", "Ontvangstdatum", "Geboortedatum", "Geslacht", "Arts", " "]
 
         time.sleep(3)
         print_elapsed_time(start_time, "voor resultaten")
         # write data to sheet, create new sheet if not exists, empty sheet if exists
-        if "Resultaten" not in st.session_state['wb_schrijven'].sheetnames:
-            ws2 = st.session_state['wb_schrijven'].create_sheet(title="Resultaten")
-            # write header
-            print(st.session_state["urine_analysen"])
-            
-            print('Dit is urine-analysen')
-            print(st.session_state['urine_analysen'])
-            print('Dit is urine-analysen2')
-            print(st.session_state['urine_analysen2'])
-            ws2.append(["Onze ref."]+(header:=["Naam", "Voornaam", "Bedrijf", "Werknemer", "Ontvangstdatum", "Geboortedatum", "Geslacht", "Arts", " "])+ st.session_state['urine_analysen'])
-            
-        else:
-            ws2 = st.session_state['wb_schrijven']["Resultaten"]
-            ws2.delete_rows(2, ws2.max_row)
-
-        
-
-        for patient_id, patient_data in st.session_state["patients"].items():
-   
-                row = [patient_id]+[patient_data.get(st.session_state["header"][i], "") for i in range(len(st.session_state["header"]))]
-                analyse_array = []
+        if magingevuldworden:
+            if "Resultaten" not in st.session_state['wb_schrijven'].sheetnames:
+                ws2 = st.session_state['wb_schrijven'].create_sheet(title="Resultaten")
                 
-                for analyse in st.session_state['urine_analysen']:
-                    analyse_array.append(patient_data.get(analyse, ""))
-                if any(element != "" for element in analyse_array):
-                    rij = row + analyse_array
-                    ws2.append(rij)
+                ws2.append(["Onze ref."]+ hoofd + st.session_state['urine_analysen'])
+                
+            else:
+                ws2 = st.session_state['wb_schrijven']["Resultaten"]
+                ws2.delete_rows(2, ws2.max_row)
 
-        rijen_index = 2
         
-        for row_index, row in enumerate(ws2.iter_rows(min_row=2), start=2):
-            first_cell_value = row[0].value
+        
+            for patient_id, patient_data in st.session_state["patients"].items():
+                    
+                    row = [patient_id]+[patient_data.get(hoofd[i], "") for i in range(len(hoofd))]
+                    
+
+                    analyse_array = []
+                    
+                    for analyse in st.session_state['urine_analysen']:
+                        analyse_array.append(patient_data.get(analyse, ""))
+                    if any(element != "" for element in analyse_array):
+                        rij = row + analyse_array
+                        ws2.append(rij)
+
+            rijen_index = 2
             
-            for id_keys, id_value in st.session_state.t.items():
-                if first_cell_value == id_keys:  
-                    for cell_index, cell in enumerate(row, start=1):  
-                        kolommen_index = get_column_letter(cell_index)
-                        
-                        waarde = ws2[f'{kolommen_index}1'].value
-                        if waarde in id_value:
-                            echte_kolom = cell_index - 1
-                            echte_kolommen_index = get_column_letter(echte_kolom)
+            for row_index, row in enumerate(ws2.iter_rows(min_row=2), start=2):
+                first_cell_value = row[0].value
+                
+                for id_keys, id_value in st.session_state.t.items():
+                    if first_cell_value == id_keys:  
+                        for cell_index, cell in enumerate(row, start=1):  
+                            kolommen_index = get_column_letter(cell_index)
                             
-                            ws2[f'{echte_kolommen_index}{rijen_index}'] = "<"
-            rijen_index += 1
+                            waarde = ws2[f'{kolommen_index}1'].value
+                            if waarde in id_value:
+                                echte_kolom = cell_index - 1
+                                echte_kolommen_index = get_column_letter(echte_kolom)
+                                
+                                ws2[f'{echte_kolommen_index}{rijen_index}'] = "<"
+                rijen_index += 1
 
-        for column in ws2.columns:
-            max_length = 0
-            for cell in column:
-                try:
-                    if len(str(cell.value)) > max_length:
-                        max_length = len(str(cell.value))
-                except TypeError:  # Als de celwaarde geen string is
-                    pass
-            adjusted_width = (max_length + 2)
-            ws2.column_dimensions[column[0].column_letter].width = adjusted_width           
+            for column in ws2.columns:
+                max_length = 0
+                for cell in column:
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except TypeError:  # Als de celwaarde geen string is
+                        pass
+                adjusted_width = (max_length + 2)
+                ws2.column_dimensions[column[0].column_letter].width = adjusted_width           
 
-        
+            
 
         """    
         for analyse in st.session_state['urine_analysen2']:
@@ -356,7 +350,7 @@ if geüpload_bestand and download_bestand and analyse_bestand and file_name and 
                 nieuwe_liemiet = nieuwe_limieten.get(analyse,"")
                 
                 headers = ["Onze ref.", "Naam", "Voornaam", "Bedrijf", "Werknemer", "Ontvangstdatum", "Geboortedatum", "Geslacht", "Arts", " "]
-                hoofd = ["Naam", "Voornaam", "Bedrijf", "Werknemer", "Ontvangstdatum", "Geboortedatum", "Geslacht", "Arts", " "]
+                eerste_kolom = ["Naam", "Voornaam", "Bedrijf", "Werknemer", "Ontvangstdatum", "Geboortedatum", "Geslacht", "Arts", " "]
                 vermijd_analyses = ["methylhippuurzuur (mg/L)", "methylhippuurzuur (mg/g creat.)"]
 
                 if analyse != "Methylhippuurzuur": 
@@ -392,11 +386,11 @@ if geüpload_bestand and download_bestand and analyse_bestand and file_name and 
                 
                
                 c = 1
-                for patient_id, patient_data in patients.items():
+                for patient_id, patient_data in st.session_state["patients"].items():
                     row_data = []
                     all_data_present = True  # Gebruik een vlag om te controleren of alle data aanwezig is voor de huidige patiënt
  
-                    row = [patient_id] + [patient_data.get(col, "") for col in hoofd]
+                    row = [patient_id] + [patient_data.get(col, "") for col in eerste_kolom]
                     for heading in matching_headers:
                         if heading in patient_data:
                             substance_value = patient_data[heading]
@@ -419,7 +413,7 @@ if geüpload_bestand and download_bestand and analyse_bestand and file_name and 
                 for row in ws2.iter_rows(min_row=2, values_only=True):  
                     cel_waarde = ws2[f'A{rij}'].value
                     
-                    creatinine_value = patients[cel_waarde]['Creatinine (g/L)']
+                    creatinine_value = st.session_state["patients"][cel_waarde]['Creatinine (g/L)']
                     
                     ws2.cell(row=rij, column=creatinine_index, value=creatinine_value)
                     rij = rij + 1
