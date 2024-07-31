@@ -35,6 +35,24 @@ if 'data_loaded' not in st.session_state:
         "Fluor": 0, "Hippuurzuur": 20, "Methylhippuurzuur": 50.0, "Muconzuur": 0, "Nikkel": 0, 
         "o-Cresol": 0.05, "Creatinine": 0
         }
+    st.session_state["nieuwe_limieten"] = {"1-methoxy-2-propanol": 0.4 ,"Chroom":0.4, "Cobalt":0, "Ethylmethylketon":0.1,"Fluor":0, "Hippuurzuur":19, "Methylhippuurzuur":49.9,
+        "Muconzuur":0, "Nikkel":0, "o-Cresol":0.04, "Creatinine":0}
+    st.session_state["tollerantiegrens"] = {"1-methoxy-2-propanol":"niet beschikbaar","Chroom": {"Einde shift, einde werkweek":"30,0 µg/g creat.",
+            "Einde shift - begin shift": "</=10,0 µg/g creat."},
+            "Cobalt":{"Einde shift, einde werkweek":"15,0 µg/g creat." }, "Ethylmethylketon":{"Einde shift":"2,5 mg/g creat."},
+            "Fluor":{"Begin shift":"3,00 mg/g creat.", "Einde shift": "7,00 mg/g creat."}, "Hippuurzuur":{" Einde shift": "1500 mg/g creat."}, 
+            "Methylhippuurzuur": {"Einde shift": "1500,0 mg/g creat."}, "Muconzuur":{"Einde shift":"1,50 mg/g creat."},
+            "Nikkel": ["Blootstelling aan oplosbaar nikkel (100 µg/m3 lucht) correspondeert einde shift met", "50,0 µg/g creat."],
+            "o-Cresol":{"Einde shift": "0,50 mg/g creat."}                                                                                                                                    
+            }
+            
+    st.session_state["grenswaarden"] = {"1-methoxy-2-propanol":"0","Chroom": "0,0 - 0,35 µg/g creat.",
+            "Cobalt":"0,0 - 2,0 µg/g creat.", "Ethylmethylketon":"0",
+            "Fluor":"0,00 - 1,00 mg/g creat.", "Hippuurzuur": "0 - 1500 mg/g creat.", 
+            "Methylhippuurzuur": "0", "Muconzuur":" 0,00 - 0,30 mg/g creat.",
+            "Nikkel": "0,0 - 5,0 µg/g creat.",
+            "o-Cresol":"0,00 - 0,30 mg/g creat."                                                                                                                                    
+            }
     st.session_state.patients = {}
     st.session_state.t = {}
 if geüpload_bestand and download_bestand and analyse_bestand and file_name and zoekwaarde:
@@ -87,25 +105,7 @@ if geüpload_bestand and download_bestand and analyse_bestand and file_name and 
             
             
             
-            nieuwe_limieten={"1-methoxy-2-propanol": 0.4 ,"Chroom":0.4, "Cobalt":0, "Ethylmethylketon":0.1,"Fluor":0, "Hippuurzuur":19, "Methylhippuurzuur":49.9,
-            "Muconzuur":0, "Nikkel":0, "o-Cresol":0.04, "Creatinine":0}
             
-            tollerantiegrens = {"1-methoxy-2-propanol":"niet beschikbaar","Chroom": {"Einde shift, einde werkweek":"30,0 µg/g creat.",
-            "Einde shift - begin shift": "</=10,0 µg/g creat."},
-            "Cobalt":{"Einde shift, einde werkweek":"15,0 µg/g creat." }, "Ethylmethylketon":{"Einde shift":"2,5 mg/g creat."},
-            "Fluor":{"Begin shift":"3,00 mg/g creat.", "Einde shift": "7,00 mg/g creat."}, "Hippuurzuur":{" Einde shift": "1500 mg/g creat."}, 
-            "Methylhippuurzuur": {"Einde shift": "1500,0 mg/g creat."}, "Muconzuur":{"Einde shift":"1,50 mg/g creat."},
-            "Nikkel": ["Blootstelling aan oplosbaar nikkel (100 µg/m3 lucht) correspondeert einde shift met", "50,0 µg/g creat."],
-            "o-Cresol":{"Einde shift": "0,50 mg/g creat."}                                                                                                                                    
-            }
-            
-            grenswaarden = {"1-methoxy-2-propanol":"0","Chroom": "0,0 - 0,35 µg/g creat.",
-            "Cobalt":"0,0 - 2,0 µg/g creat.", "Ethylmethylketon":"0",
-            "Fluor":"0,00 - 1,00 mg/g creat.", "Hippuurzuur": "0 - 1500 mg/g creat.", 
-            "Methylhippuurzuur": "0", "Muconzuur":" 0,00 - 0,30 mg/g creat.",
-            "Nikkel": "0,0 - 5,0 µg/g creat.",
-            "o-Cresol":"0,00 - 0,30 mg/g creat."                                                                                                                                    
-            }
 
             rijen_kopie = []
             for rij in ws_lezen.iter_rows(min_row=2, values_only=True):
@@ -342,12 +342,12 @@ if geüpload_bestand and download_bestand and analyse_bestand and file_name and 
 
             
 
-        """    
+           
         for analyse in st.session_state['urine_analysen2']:
             if analyse not in st.session_state['wb_schrijven'].sheetnames and analyse != "Creatinine":
                 ws2 = st.session_state['wb_schrijven'].create_sheet(title=analyse)
-                detectielimiet = detectielimieten_analysen.get(analyse,"")
-                nieuwe_liemiet = nieuwe_limieten.get(analyse,"")
+                detectielimiet = st.session_state['detectielimieten_analysen'].get(analyse,"")
+                nieuwe_liemiet = st.session_state["nieuwe_limieten"].get(analyse,"")
                 
                 headers = ["Onze ref.", "Naam", "Voornaam", "Bedrijf", "Werknemer", "Ontvangstdatum", "Geboortedatum", "Geslacht", "Arts", " "]
                 eerste_kolom = ["Naam", "Voornaam", "Bedrijf", "Werknemer", "Ontvangstdatum", "Geboortedatum", "Geslacht", "Arts", " "]
@@ -636,7 +636,7 @@ if geüpload_bestand and download_bestand and analyse_bestand and file_name and 
 
 
 
-        """
+        
         st.session_state['wb_schrijven'].save("statistics.xlsx")
         with open("statistics.xlsx", "rb") as file:
             btn = st.download_button(
